@@ -5,6 +5,12 @@
 #include <sys/stat.h>
 #include <json-c/json.h>
 
+// Provided by the build (-DAPP_VERSION, from the Makefile's APP_VERSION);
+// fall back so the file still compiles outside the project build.
+#ifndef APP_VERSION
+#define APP_VERSION "dev"
+#endif
+
 namespace report {
 
 // All reports share one lock. A report is filled by a single background
@@ -137,13 +143,6 @@ Section& Report::add(const char* title) {
     return ref;
 }
 
-void Report::append(const Report& other) {
-    mutexLock(&g_mtx);
-    for (const Section& s : other.sections_)
-        sections_.push_back(s);
-    mutexUnlock(&g_mtx);
-}
-
 void Report::lock()   const { mutexLock(&g_mtx); }
 void Report::unlock() const { mutexUnlock(&g_mtx); }
 
@@ -156,15 +155,11 @@ static const char* statusName(Status s) {
     }
 }
 
-// Serialise the report with json-c (switch-libjson-c). json-c handles string
-// escaping and number formatting, so the export is well-formed by construction.
-std::string Report::toJson() const {
-    json_object* root = json_object_new_object();
-    json_object_object_add(root, "tool",    json_object_new_string("nxdiag"));
-    json_object_object_add(root, "version", json_object_new_string("1.0.0"));
-
+// Build the JSON array of a report's sections (each section an object with a
+// title and an array of entry objects).
+static json_object* sectionsArray(const std::vector<Section>& sections) {
     json_object* secs = json_object_new_array();
-    for (const Section& s : sections_) {
+    for (const Section& s : sections) {
         json_object* so = json_object_new_object();
         json_object_object_add(so, "title", json_object_new_string(s.title.c_str()));
 
@@ -186,7 +181,27 @@ std::string Report::toJson() const {
         json_object_object_add(so, "entries", ents);
         json_object_array_add(secs, so);
     }
-    json_object_object_add(root, "sections", secs);
+    return secs;
+}
+
+// Serialise a categorized report with json-c (switch-libjson-c). json-c handles
+// string escaping and number formatting, so the export is well-formed by
+// construction. Each category is one module's sections under a `module` label.
+std::string toJson(const std::vector<Category>& categories) {
+    json_object* root = json_object_new_object();
+    json_object_object_add(root, "tool",    json_object_new_string("nxdiag"));
+    json_object_object_add(root, "version", json_object_new_string(APP_VERSION));
+
+    json_object* cats = json_object_new_array();
+    for (const Category& c : categories) {
+        json_object* co = json_object_new_object();
+        json_object_object_add(co, "module",
+                               json_object_new_string(c.module.c_str()));
+        json_object_object_add(co, "sections",
+                               sectionsArray(c.report.sections()));
+        json_object_array_add(cats, co);
+    }
+    json_object_object_add(root, "categories", cats);
 
     const char* str = json_object_to_json_string_ext(
         root, JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_SPACED);
@@ -196,7 +211,7 @@ std::string Report::toJson() const {
     return out;
 }
 
-Result Report::writeJson(const char* path) const {
+Result writeJson(const char* path, const std::vector<Category>& categories) {
     // Best-effort: ensure the containing directory exists.
     std::string dir(path);
     size_t slash = dir.find_last_of('/');
@@ -209,7 +224,7 @@ Result Report::writeJson(const char* path) const {
     if (!f)
         return MAKERESULT(Module_Libnx, LibnxError_IoError);
 
-    std::string json = toJson();
+    std::string json = toJson(categories);
     size_t written = fwrite(json.data(), 1, json.size(), f);
     int    flush    = fflush(f);
     fclose(f);

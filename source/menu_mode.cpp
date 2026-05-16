@@ -35,19 +35,22 @@ constexpr int kPerPage = 5;
 const char* kReportPath = "sdmc:/nxdiag/report.json";
 } // namespace
 
-// Worker body: probe every module, then write the combined JSON. Runs on a
-// background thread so the menu keeps rendering throughout.
+// Worker body: probe the targeted module(s), then write the categorized JSON.
+// Runs on a background thread so the menu keeps rendering throughout.
 void MenuMode::runExport() {
-    for (int i = 0; i < probeCount_; i++) {
-        exportStage_.store(i + 1, std::memory_order_relaxed);
+    std::vector<report::Category> cats;
+    const int total = (exportTarget_ < 0) ? probeCount_ : 1;
+    for (int n = 0; n < total; n++) {
+        int i = (exportTarget_ < 0) ? n : exportTarget_;
+        exportStage_.store(n + 1, std::memory_order_relaxed);
         ProbeMode* m = probes_[i];
         m->joinWorker();        // never race a module's own probe worker
         m->runFresh();
-        master_.append(m->report());
+        cats.push_back(report::Category{ m->name(), m->report() });
     }
-    exportStage_.store(probeCount_ + 1, std::memory_order_relaxed);
+    exportStage_.store(total + 1, std::memory_order_relaxed);
 
-    Result rc = master_.writeJson(kReportPath);
+    Result rc = report::writeJson(kReportPath, cats);
     exportOk_ = R_SUCCEEDED(rc);
     char buf[160];
     if (exportOk_)
@@ -63,8 +66,9 @@ void MenuMode::exportThunk(void* self) {
     static_cast<MenuMode*>(self)->runExport();
 }
 
-void MenuMode::startExport() {
-    master_.clear();
+void MenuMode::beginExport(int target) {
+    if (exportActive_) return;
+    exportTarget_ = (target >= 0 && target < probeCount_) ? target : -1;
     exportMsg_.clear();
     exportDone_.store(false, std::memory_order_relaxed);
     exportStage_.store(0, std::memory_order_relaxed);
@@ -98,7 +102,7 @@ void MenuMode::update(const Input& in) {
 
     int act = menu_.activated();
     if (act >= 0) {
-        if (act == kItemCount) startExport();          // the run-all row
+        if (act == kItemCount) beginExport(-1);         // run-all row: all modules
         else                   requestSwitch(act + 1); // view index = item + 1
     }
 }
@@ -147,11 +151,13 @@ void MenuMode::render(Gfx& g) {
     int sy = kListY + kPerPage * kRowH + 10;
     if (exportActive_) {
         int stage = exportStage_.load(std::memory_order_relaxed);
+        int total = (exportTarget_ < 0) ? probeCount_ : 1;
         char buf[96];
-        if (stage >= 1 && stage <= probeCount_)
+        if (stage >= 1 && stage <= total) {
+            int idx = (exportTarget_ < 0) ? stage - 1 : exportTarget_;
             snprintf(buf, sizeof(buf), "Running module %d/%d: %s ...",
-                     stage, probeCount_, probes_[stage - 1]->name());
-        else if (stage > probeCount_)
+                     stage, total, probes_[idx]->name());
+        } else if (stage > total)
             snprintf(buf, sizeof(buf), "Writing report.json ...");
         else
             snprintf(buf, sizeof(buf), "Starting ...");

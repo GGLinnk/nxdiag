@@ -74,25 +74,31 @@ frame rate and remains scrollable while a module is measuring.
 ## JSON export
 
 From the menu, **Run all tests & export JSON** probes every module and writes
-the combined report to:
+the report to:
 
 ```
 sdmc:/nxdiag/report.json
 ```
 
+A single module can also be exported on its own from the command line (see
+[Launch commands](#launch-commands)).
+
 The report is serialised with **json-c** (the `switch-libjson-c` portlib). It
-is a flat list of sections and entries; numeric entries keep a real `number`
-(and `unit`) field, and every entry carries its `status`, so two runs can be
-diffed mechanically:
+is **categorized**: sections are grouped by module under a `categories` list,
+each tagged with its `module` name. Numeric entries keep a real `number` (and
+`unit`) field, and every entry carries its `status`, so two runs can be diffed
+mechanically:
 
 ```json
 {
   "tool": "nxdiag",
-  "version": "1.0.0",
-  "sections": [
-    { "title": "Single-Core Throughput", "entries": [
-      { "key": "Integer", "value": "3210 Mops/s", "number": 3210.4,
-        "unit": "Mops/s", "status": "good" }
+  "version": "1.1.0",
+  "categories": [
+    { "module": "CPU", "sections": [
+      { "title": "Single-Core Throughput", "entries": [
+        { "key": "Integer", "value": "3210 Mops/s", "number": 3210.4,
+          "unit": "Mops/s", "status": "good" }
+      ]}
     ]}
   ]
 }
@@ -125,6 +131,19 @@ the homebrew menu, or load the `.nro` in a Switch emulator.
 > Each module probes on a background worker thread; an animated "running"
 > overlay is shown while it measures, and the menu's run-all does the same so
 > the UI never stalls.
+
+## Launch commands
+
+`nxdiag.nro` accepts an optional launch command (passed by the homebrew loader,
+`nxlink`, or a forwarder):
+
+| Command | Effect |
+|---|---|
+| `nxdiag <module>` | Open a module: `sysinfo`, `cpu`, `memory`, `gpu`, `storage`, `kernel`, `services` |
+| `nxdiag export [<module>]` | Probe one module (`nxdiag export cpu`) or every module (`nxdiag export`) and write the categorized `sdmc:/nxdiag/report.json` |
+| `nxdiag help` | Print usage |
+
+With no command the menu opens as usual.
 
 ## Project layout
 

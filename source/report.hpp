@@ -4,9 +4,9 @@
 #include <vector>
 
 // A diagnostic report: an ordered list of sections, each an ordered list of
-// key/value entries. Every probe module fills one report; the menu's
-// "run all" concatenates them and serialises the whole to JSON on the SD card
-// so an on-device run can be diffed against an emulator run.
+// key/value entries. Every probe module fills one report; the export groups
+// the modules' reports by category and serialises the lot to JSON on the SD
+// card so an on-device run can be diffed against an emulator run.
 namespace report {
 
 // Colour-coded verdict for an entry. Info is neutral (a raw reading);
@@ -60,14 +60,6 @@ public:
     bool empty() const { return sections_.empty(); }
     const std::vector<Section>& sections() const { return sections_; }
 
-    // Append a deep copy of every section in `other` (used by "run all").
-    void append(const Report& other);
-
-    std::string toJson() const;
-    // Serialise toJson() to `path`, creating parent directories. The Result is
-    // 0 on success, or a libnx fs/errno-wrapped failure code.
-    Result writeJson(const char* path) const;
-
     // A probe worker fills the report while the UI renders it. The Section
     // builders take an internal lock for each mutation; the renderer brackets
     // its read with lock()/unlock() so it always sees a consistent snapshot.
@@ -77,6 +69,18 @@ public:
 private:
     std::vector<Section> sections_;
 };
+
+// One module's contribution to the categorized export: a name and its report.
+struct Category {
+    std::string module;   // module name, e.g. "CPU"
+    Report      report;   // that module's sections
+};
+
+// Serialise a categorized report (sections grouped by module) to a JSON
+// document, and to a file. writeJson creates parent directories; its Result
+// is 0 on success, or a libnx fs/errno-wrapped failure code.
+std::string toJson(const std::vector<Category>& categories);
+Result      writeJson(const char* path, const std::vector<Category>& categories);
 
 // "0x01A8 (module 2, desc 3)" style rendering of a libnx Result.
 std::string describeResult(Result rc);

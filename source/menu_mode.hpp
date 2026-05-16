@@ -17,6 +17,11 @@ public:
         probes_ = probes; probeCount_ = count;
     }
 
+    // Kick off the probe + JSON export on a background thread. `target` is a
+    // probe index to export a single module, or -1 for every module. Used by
+    // the --export launch option and the menu's run-all row.
+    void beginExport(int target);
+
     void update(const nxd::Input& in) override;
     void render(nxd::Gfx& g) override;
     const char* name() const override { return "NX Diag"; }
@@ -25,7 +30,6 @@ public:
     }
 
 private:
-    void startExport();
     void runExport();                       // worker body
     static void exportThunk(void* self);
 
@@ -38,8 +42,8 @@ private:
     Thread            exportThread_{};
     bool              exportActive_ = false;
     std::atomic<bool> exportDone_{false};
-    std::atomic<int>  exportStage_{0};      // 1-based probe index in progress
-    report::Report    master_;              // accumulates each module's report
+    std::atomic<int>  exportStage_{0};      // 1-based step in progress
+    int               exportTarget_ = -1;  // -1 = all modules, else probe index
 
     // Result of the most recent export, shown under the menu.
     std::string exportMsg_;
