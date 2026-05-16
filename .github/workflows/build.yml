@@ -1,0 +1,26 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - name: Checkout (with nxdisplaylib submodule)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: make
+
+      - name: Upload NRO
+        uses: actions/upload-artifact@v5
+        with:
+          name: nxdiag-nro
+          path: dist/nxdiag.nro
+          if-no-files-found: error

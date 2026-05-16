@@ -1,0 +1,3 @@
+[submodule "libs/nxdisplaylib"]
+	path = libs/nxdisplaylib
+	url = https://github.com/GGLinnk/nxdisplaylib.git

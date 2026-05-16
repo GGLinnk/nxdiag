@@ -1,0 +1,49 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - name: Checkout (with nxdisplaylib submodule)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: make
+
+      - name: Upload NRO
+        uses: actions/upload-artifact@v5
+        with:
+          name: nxdiag-nro
+          path: dist/nxdiag.nro
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download NRO
+        uses: actions/download-artifact@v5
+        with:
+          name: nxdiag-nro
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/nxdiag.nro \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
