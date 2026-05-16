@@ -22,7 +22,7 @@ jobs:
         run: make
 
       - name: Upload NRO
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: nxdiag-nro
           path: dist/nxdiag.nro
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download NRO
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: nxdiag-nro
           path: dist
