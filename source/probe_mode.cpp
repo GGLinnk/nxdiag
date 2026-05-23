@@ -26,7 +26,13 @@ void ProbeMode::startWorker() {
     hasRun_ = false;
     workerDone_.store(false, std::memory_order_relaxed);
     view_.reset();
+    // Hold off the worker spawn so the next render frame can show pure
+    // placeholders before any probe touches report_; update() spawns when
+    // this countdown reaches zero.
+    pendingFrames_ = 2;
+}
 
+void ProbeMode::spawnWorker() {
     s32 prio = 0x2C;
     svcGetThreadPriority(&prio, CUR_THREAD_HANDLE);
 
@@ -56,9 +62,14 @@ void ProbeMode::update(const Input& in) {
         workerActive_ = false;
         hasRun_ = true;
     }
-    // A re-runs (only when idle); scrolling works even while a probe runs,
-    // since the report fills in live.
-    if (!workerActive_ && (in.down & HidNpadButton_A))
+    // Skeleton was seeded; render it for at least one frame, then spawn.
+    if (pendingFrames_ > 0 && !workerActive_) {
+        if (--pendingFrames_ == 0)
+            spawnWorker();
+    }
+    // A re-runs (only when fully idle); scrolling works even while a probe
+    // runs, since the report fills in live.
+    if (!workerActive_ && pendingFrames_ == 0 && (in.down & HidNpadButton_A))
         startWorker();
     view_.handleInput(in);
 }

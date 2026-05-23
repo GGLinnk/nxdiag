@@ -37,6 +37,9 @@ public:
     const report::Report& report() const { return report_; }
 
 protected:
+    // Seed the skeleton and defer spawning the worker by a couple of frames,
+    // so at least one rendered frame shows pure placeholders before any probe
+    // touches report_. update() does the actual spawn when the countdown ends.
     void startWorker();
 
     report::Report report_;
@@ -44,10 +47,15 @@ protected:
     ReportView     view_;
 
 private:
+    void        spawnWorker();          // create + start the worker thread
     static void workerThunk(void* self);
 
     Thread            worker_{};
     bool              workerActive_ = false;
     std::atomic<bool> workerDone_{false};
+    // 0 = no pending start; >0 = frames left to render before spawning. Set
+    // to 2 by startWorker: one update decrements, render shows the seeded
+    // placeholders, then the next update reaches 0 and spawns the worker.
+    int               pendingFrames_ = 0;
     int               spin_ = 0;        // busy-overlay animation counter
 };
