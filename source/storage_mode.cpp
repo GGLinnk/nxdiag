@@ -21,6 +21,35 @@ u8 patternByte(size_t i) {
 
 } // namespace
 
+void StorageMode::seedSkeleton() {
+    {
+        report::Section& s = report_.add("SD Card");
+        s.info("Total capacity",       "...");
+        s.info("Free space available", "...");
+        s.info("Free space sane",      "...");
+    }
+    {
+        report::Section& s = report_.add("File I/O Round-Trip");
+        s.info("Write 4 MiB",       "...");
+        s.info("Write throughput",  "...");
+        s.info("File size on disk", "...");
+        s.info("Read 4 MiB",        "...");
+        s.info("Read throughput",   "...");
+        s.info("Data integrity",    "...");
+        s.info("Test file removed", "...");
+    }
+    {
+        report::Section& s = report_.add("Directory Operations");
+        s.info("Create directory", "...");
+        s.info("Remove directory", "...");
+    }
+    {
+        report::Section& s = report_.add("Path Resolution");
+        s.info("sdmc: device mounted", "...");
+        s.info("Working directory",    "...");
+    }
+}
+
 void StorageMode::run() {
     mkdir(kDir, 0777);   // ensure the work directory exists
 

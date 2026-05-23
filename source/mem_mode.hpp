@@ -5,6 +5,7 @@
 // bandwidth, cache-latency curve and the effective heap allocation limit.
 class MemMode : public ProbeMode {
 public:
+    void seedSkeleton() override;
     void run() override;
     const char* name() const override { return "Memory"; }
 };

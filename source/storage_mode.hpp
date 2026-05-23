@@ -6,6 +6,7 @@
 // filesystem self-test exercised from inside the running process.
 class StorageMode : public ProbeMode {
 public:
+    void seedSkeleton() override;
     void run() override;
     const char* name() const override { return "Storage"; }
 };

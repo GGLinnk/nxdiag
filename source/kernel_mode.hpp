@@ -5,6 +5,7 @@
 // process / thread identity, the libnx environment and entropy sources.
 class KernelMode : public ProbeMode {
 public:
+    void seedSkeleton() override;
     void run() override;
     const char* name() const override { return "Kernel / SVC"; }
 };

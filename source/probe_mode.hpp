@@ -21,9 +21,15 @@ public:
     }
 
     // --- probe API, also driven by the menu's run-all export ------------
-    // Execute the module's probes/benchmarks, appending to report_.
+    // Lay out the report's sections and entries with "..." placeholders so
+    // the first render frame shows the structure immediately. Runs on the
+    // main thread, synchronously, before the probe worker is spawned. Real
+    // values overwrite the placeholders in place (Section entries upsert).
+    virtual void seedSkeleton() {}
+    // Execute the module's probes/benchmarks, overwriting the seeded entries
+    // (or appending them if no skeleton was seeded, as in the run-all export).
     virtual void run() {}
-    // Clear prior data then re-run: idempotent (run() only appends sections).
+    // Clear prior data then re-run end-to-end (used by the run-all export).
     void runFresh() { report_.clear(); run(); hasRun_ = true; }
     bool hasRun() const { return hasRun_; }
     // Block until any background probe worker has finished.

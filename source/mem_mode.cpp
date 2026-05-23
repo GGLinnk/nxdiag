@@ -46,6 +46,61 @@ void queryAddr(report::Section& s, const char* key, u32 id) {
 
 } // namespace
 
+void MemMode::seedSkeleton() {
+    {
+        report::Section& s = report_.add("Process Memory (svcGetInfo)");
+        s.info("Total available",      "...");
+        s.info("Currently used",       "...");
+        s.info("Total >= 256 MiB",     "...");
+        s.info("Used within total",    "...");
+        s.info("Total (non-system)",   "...");
+        s.info("Used (non-system)",    "...");
+        s.info("System resource size", "...");
+        s.info("System resource used", "...");
+    }
+    {
+        report::Section& s = report_.add("Address Space Layout");
+        s.info("ASLR base",  "...");
+        s.info("ASLR size",  "...");
+        s.info("Heap base",  "...");
+        s.info("Heap size",  "...");
+        s.info("Alias base", "...");
+        s.info("Alias size", "...");
+        s.info("Stack base", "...");
+        s.info("Stack size", "...");
+    }
+    {
+        report::Section& s = report_.add("Virtual Memory Map");
+        s.info("Regions walked",         "...");
+        s.info("Mapped regions",         "...");
+        s.info("Mapped memory found",    "...");
+        s.info("Executable code mapped", "...");
+        s.info("Heap-mapped bytes",      "...");
+        s.info("Free address space",     "...");
+    }
+    {
+        report::Section& s = report_.add("Bandwidth");
+        s.info("Sequential write", "...");
+        s.info("Sequential read",  "...");
+        s.info("Copy (memcpy)",    "...");
+    }
+    {
+        report::Section& s = report_.add("Access Latency");
+        s.info("8 KiB  (L1)",            "...");
+        s.info("256 KiB (L2)",           "...");
+        s.info("2 MiB  (L2)",            "...");
+        s.info("32 MiB (DRAM)",          "...");
+        s.info("L1 latency sane",        "...");
+        s.info("Latency grows with size", "...");
+    }
+    {
+        report::Section& s = report_.add("Heap Allocation Limit");
+        s.info("Total committed",         "...");
+        s.info("8 MiB chunks allocated",  "...");
+        s.info("Heap released cleanly",   "...");
+    }
+}
+
 void MemMode::run() {
     // --- Kernel-reported process memory ---------------------------------
     {

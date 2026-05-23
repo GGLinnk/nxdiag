@@ -55,7 +55,9 @@ struct Section {
 
 class Report {
 public:
-    Section& add(const char* title);     // append and return a fresh section
+    // Get or create the section with `title`; subsequent adds return the same
+    // section, so a seeded skeleton and the real probe write to one section.
+    Section& add(const char* title);
     void clear() { sections_.clear(); }
     bool empty() const { return sections_.empty(); }
     const std::vector<Section>& sections() const { return sections_; }

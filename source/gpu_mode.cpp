@@ -41,6 +41,37 @@ void probeClock(report::Section& s, const char* label, PcvModuleId mod,
 
 } // namespace
 
+void GpuMode::seedSkeleton() {
+    {
+        report::Section& s = report_.add("deko3d Device");
+        s.info("dkDeviceCreate",      "...");
+        s.info("Device create time",  "...");
+        s.info("Graphics API",        "...");
+        s.info("GPU",                 "...");
+    }
+    {
+        report::Section& s = report_.add("GPU Memory");
+        s.info("1 MiB GPU block",       "...");
+        s.info("16 MiB GPU block",      "...");
+        s.info("16 MiB CPU->GPU write", "...");
+        s.info("64 MiB GPU block",      "...");
+        s.info("64 MiB CPU->GPU write", "...");
+    }
+    {
+        report::Section& s = report_.add("GPU Timestamp");
+        s.info("Timestamp non-zero",  "...");
+        s.info("GPU clock advancing", "...");
+    }
+    {
+        report::Section& s = report_.add("GPU / Memory Clocks");
+        s.info("clkrst: initialize",      "...");
+        s.info("GPU clock",               "...");
+        s.info("GPU max clock",           "...");
+        s.info("EMC (memory) clock",      "...");
+        s.info("EMC (memory) max clock",  "...");
+    }
+}
+
 void GpuMode::run() {
     // --- deko3d device bring-up -----------------------------------------
     DkDevice device = nullptr;

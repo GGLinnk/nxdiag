@@ -71,6 +71,52 @@ double measureIntMops(u64 iters) {
 
 } // namespace
 
+void CpuMode::seedSkeleton() {
+    {
+        report::Section& s = report_.add("Topology");
+        s.info("Core mask",            "...");
+        s.info("Usable core count",    "...");
+        s.info("Current core",         "...");
+        s.info("Main thread priority", "...");
+        s.info("CPU",                  "...");
+    }
+    {
+        report::Section& s = report_.add("Clocks");
+        s.info("clkrst: initialize", "...");
+        s.info("CPU clock",          "...");
+        s.info("Max CPU clock",      "...");
+        s.info("Min CPU clock",      "...");
+        s.info("Clock step count",   "...");
+    }
+    {
+        report::Section& s = report_.add("Counter Resolution");
+        s.info("Min tick delta observed", "...");
+        s.info("Effective resolution",    "...");
+    }
+    {
+        report::Section& s = report_.add("Single-Core Throughput");
+        s.info("Integer",                    "...");
+        s.info("Double-precision FP",        "...");
+        s.info("NEON SIMD (f32x4)",          "...");
+        s.info("NEON faster than scalar FP", "...");
+    }
+    {
+        report::Section& s = report_.add("Per-Core Throughput");
+        for (int c = 0; c < 3; c++) {       // typical A57: 3 usable cores
+            char k[24];
+            snprintf(k, sizeof(k), "Core %d integer", c);
+            s.info(k, "...");
+        }
+        s.info("Core symmetry", "...");
+    }
+    {
+        report::Section& s = report_.add("Multi-Core Scaling");
+        s.info("All worker threads launched", "...");
+        s.info("Aggregate integer",           "...");
+        s.info("Scaling factor",              "...");
+    }
+}
+
 void CpuMode::run() {
     // --- Topology --------------------------------------------------------
     int cores[4];

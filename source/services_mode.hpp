@@ -6,6 +6,7 @@
 // services that succeed is itself a fingerprint of the host environment.
 class ServicesMode : public ProbeMode {
 public:
+    void seedSkeleton() override;
     void run() override;
     const char* name() const override { return "Services"; }
 };

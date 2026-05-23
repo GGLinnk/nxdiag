@@ -42,6 +42,83 @@ const char* chargerName(PsmChargerType t) {
 
 } // namespace
 
+void ServicesMode::seedSkeleton() {
+    // The static "Notes" section is intentionally not seeded: it uses
+    // empty-key continuation lines that must stay interleaved with their
+    // named anchors, and it completes instantly at the end of run() anyway.
+    {
+        report::Section& s = report_.add("Power & Thermal");
+        s.info("psm: initialize",          "...");
+        s.info("psm: battery charge",      "...");
+        s.info("psm: charger type",        "...");
+        s.info("psm: charging enabled",    "...");
+        s.info("ts: initialize",           "...");
+        s.info("ts: PCB temperature",      "...");
+        s.info("ts: SoC temperature",      "...");
+        s.info("fan: initialize",          "...");
+        s.info("fan: rotation speed level","...");
+        s.info("apm: initialize",          "...");
+        s.info("apm: performance mode",    "...");
+        s.info("apm: normal-mode config",  "...");
+    }
+    {
+        report::Section& s = report_.add("Display & Audio");
+        s.info("lbl: initialize",          "...");
+        s.info("lbl: brightness setting",  "...");
+        s.info("lbl: applied brightness",  "...");
+        s.info("lbl: backlight switch",    "...");
+        s.info("audout: initialize",       "...");
+        s.info("audout: sample rate",      "...");
+        s.info("audout: channel count",    "...");
+        s.info("audout: list outputs",     "...");
+        s.info("audout: output state",     "...");
+    }
+    {
+        report::Section& s = report_.add("Network");
+        s.info("nifm: initialize",         "...");
+        s.info("nifm: current IP",         "...");
+        s.info("nifm: wireless enabled",   "...");
+        s.info("nifm: ethernet enabled",   "...");
+        s.info("nifm: connection status",  "...");
+    }
+    {
+        report::Section& s = report_.add("Crypto & Random");
+        s.info("csrng: initialize",   "...");
+        s.info("csrng: draws differ", "...");
+        s.info("spl: initialize",     "...");
+        s.info("spl: getRandomBytes", "...");
+        s.info("spl: isDevelopment",  "...");
+    }
+    {
+        report::Section& s = report_.add("Hardware Buses");
+        s.info("i2c: initialize",              "...");
+        s.info("i2c: open Tmp451 session",     "...");
+        s.info("gpio: initialize",             "...");
+        s.info("gpio: SD-detect pad direction","...");
+        s.info("clkrst: initialize",           "...");
+        s.info("clkrst: CPU clock",            "...");
+        s.info("pcv: initialize",              "...");
+        s.info("pcv: CPU clock",               "...");
+    }
+    {
+        report::Section& s = report_.add("System & Account");
+        s.info("account: initialize",        "...");
+        s.info("account: user count",        "...");
+        s.info("account: list users",        "...");
+        s.info("setsys: initialize",         "...");
+        s.info("setsys: colour set",         "...");
+        s.info("set: initialize",            "...");
+        s.info("set: region code",           "...");
+        s.info("ns: initialize",             "...");
+        s.info("ns: SD total space",         "...");
+        s.info("ns: SD free space",          "...");
+        s.info("mii: initialize",            "...");
+        s.info("mii: database count",        "...");
+        s.info("pctl: initialize",           "...");
+        s.info("pctl: restriction enabled",  "...");
+    }
+}
+
 void ServicesMode::run() {
     // --- Power & thermal -------------------------------------------------
     {

@@ -5,6 +5,7 @@
 // and the GPU / EMC clock rates reported by clkrst.
 class GpuMode : public ProbeMode {
 public:
+    void seedSkeleton() override;
     void run() override;
     const char* name() const override { return "GPU"; }
 };

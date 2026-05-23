@@ -22,6 +22,7 @@ void ProbeMode::startWorker() {
     if (workerActive_) return;          // a probe is already in flight
 
     report_.clear();
+    seedSkeleton();         // draw the layout instantly; real values upsert
     hasRun_ = false;
     workerDone_.store(false, std::memory_order_relaxed);
     view_.reset();

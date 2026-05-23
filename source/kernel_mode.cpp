@@ -23,6 +23,70 @@ u64 getInfo(report::Section& s, const char* name, u32 id, u64 sub = 0,
 
 } // namespace
 
+void KernelMode::seedSkeleton() {
+    {
+        report::Section& s = report_.add("svcGetInfo InfoType Sweep");
+        s.info("CoreMask (0)",                "...");
+        s.info("CoreMask non-zero",           "...");
+        s.info("PriorityMask (1)",            "...");
+        s.info("AliasRegionAddress (2)",      "...");
+        s.info("AliasRegionSize (3)",         "...");
+        s.info("HeapRegionAddress (4)",       "...");
+        s.info("HeapRegionSize (5)",          "...");
+        s.info("TotalMemorySize (6)",         "...");
+        s.info("TotalMemorySize non-zero",    "...");
+        s.info("UsedMemorySize (7)",          "...");
+        s.info("DebuggerAttached (8)",        "...");
+        s.info("AslrRegionAddress (12)",      "...");
+        s.info("AslrRegionSize (13)",         "...");
+        s.info("StackRegionAddress (14)",     "...");
+        s.info("StackRegionSize (15)",        "...");
+        s.info("SystemResourceSizeTotal (16)","...");
+        s.info("SystemResourceSizeUsed (17)", "...");
+        s.info("ProgramId (18)",              "...");
+        s.info("UserExceptionContext (20)",   "...");
+        s.info("TotalNonSystemMemory (21)",   "...");
+        s.info("UsedNonSystemMemory (22)",    "...");
+        s.info("IsApplication (23)",          "...");
+        s.info("FreeThreadCount (24)",        "...");
+    }
+    {
+        report::Section& s = report_.add("Process & Thread");
+        s.info("Process id",      "...");
+        s.info("Thread id",       "...");
+        s.info("Thread priority", "...");
+        s.info("Running on core", "...");
+        s.info("Program id",      "...");
+    }
+    {
+        report::Section& s = report_.add("System Tick");
+        s.info("Tick frequency",          "...");
+        s.info("svc/arm tick coherent",   "...");
+        s.info("Tick monotonic",          "...");
+        s.info("Uptime",                  "...");
+        s.info("Idle ticks (this core)",  "...");
+    }
+    {
+        report::Section& s = report_.add("libnx Environment");
+        s.info("Module type",         "...");
+        s.info("Has argv",            "...");
+        s.info("Heap override",       "...");
+        s.info("Next-load capable",   "...");
+        s.info("Own process handle",  "...");
+        s.info("Main thread handle",  "...");
+    }
+    {
+        report::Section& s = report_.add("Entropy");
+        for (int i = 0; i < 4; i++) {
+            char k[24];
+            snprintf(k, sizeof(k), "RandomEntropy[%d]", i);
+            s.info(k, "...");
+        }
+        s.info("Entropy words distinct",  "...");
+        s.info("randomGet bit balance",   "...");
+    }
+}
+
 void KernelMode::run() {
     // --- svcGetInfo InfoType sweep --------------------------------------
     {

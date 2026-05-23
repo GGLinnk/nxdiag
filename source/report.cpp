@@ -26,9 +26,21 @@ static std::string vformat(const char* fmt, va_list ap) {
     return std::string(buf);
 }
 
-// Append an entry under the lock so a concurrent render sees it atomically.
+// Upsert an entry under the lock so a concurrent render sees the change
+// atomically. Matching by `key` lets a probe overwrite the placeholder a
+// seeded skeleton left in the same section. Entries with an empty key
+// (continuation lines under a previous entry) always append.
 static void pushEntry(std::vector<Entry>& v, const Entry& e) {
     mutexLock(&g_mtx);
+    if (!e.key.empty()) {
+        for (Entry& ex : v) {
+            if (ex.key == e.key) {
+                ex = e;
+                mutexUnlock(&g_mtx);
+                return;
+            }
+        }
+    }
     v.push_back(e);
     mutexUnlock(&g_mtx);
 }
@@ -135,11 +147,19 @@ void Section::check(const char* key, bool pass, const char* fmt, ...) {
 
 Section& Report::add(const char* title) {
     mutexLock(&g_mtx);
+    // Find-or-add by title: a seeded skeleton creates the section first, then
+    // the real probe re-adds it and gets the same one back, overwriting its
+    // placeholder entries through pushEntry's upsert.
+    for (Section& sx : sections_) {
+        if (sx.title == title) {
+            mutexUnlock(&g_mtx);
+            return sx;
+        }
+    }
     sections_.push_back(Section{});
     sections_.back().title = title;
     Section& ref = sections_.back();
     mutexUnlock(&g_mtx);
-    // The caller fills `ref` before the next add(), so it never dangles.
     return ref;
 }
 

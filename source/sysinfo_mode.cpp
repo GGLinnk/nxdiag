@@ -47,6 +47,66 @@ void splItem(report::Section& s, const char* key, SplConfigItem item) {
 
 } // namespace
 
+void SysInfoMode::seedSkeleton() {
+    {
+        report::Section& s = report_.add("Firmware");
+        s.info("setsys: initialize",      "...");
+        s.info("Display version present", "...");
+        s.info("Major version",           "...");
+        s.info("Version triplet",         "...");
+        s.info("Revision",                "...");
+        s.info("Platform string",         "...");
+        s.info("Version hash present",    "...");
+        s.info("Firmware digest present", "...");
+        s.info("Theme colour set",        "...");
+        s.info("Serial number",           "...");
+    }
+    {
+        report::Section& s = report_.add("Hardware");
+        s.info("spl: initialize",     "...");
+        s.info("Hardware type",       "...");
+        s.info("New hardware type",   "...");
+        s.info("Is retail",           "...");
+        s.info("Is debug mode",       "...");
+        s.info("Is recovery boot",    "...");
+        s.info("Is kiosk",            "...");
+        s.info("Boot reason",         "...");
+        s.info("DRAM id",             "...");
+        s.info("Memory arrangement", "...");
+        s.info("Kernel memory cfg",   "...");
+        s.info("Device id",           "...");
+    }
+    {
+        report::Section& s = report_.add("CFW / Loader");
+        s.info("Custom firmware",   "...");
+        s.info("Loaded as NRO",     "...");
+        s.info("Has argv",          "...");
+        s.info("Heap override",     "...");
+        s.info("Next-load capable", "...");
+    }
+    {
+        report::Section& s = report_.add("Region & Locale");
+        s.info("set: initialize",  "...");
+        s.info("Region code",      "...");
+        s.info("System language",  "...");
+        s.info("Language code",    "...");
+    }
+    {
+        report::Section& s = report_.add("Power & Performance");
+        s.info("Operation mode",          "...");
+        s.info("Applet performance mode", "...");
+        s.info("apm: initialize",         "...");
+        s.info("APM performance mode",    "...");
+    }
+    {
+        report::Section& s = report_.add("Counters & Time");
+        s.info("System tick frequency", "...");
+        s.info("System tick advancing", "...");
+        s.info("Process uptime",        "...");
+        s.info("Wall clock",            "...");
+    }
+}
+
 void SysInfoMode::run() {
     // --- Firmware --------------------------------------------------------
     {
