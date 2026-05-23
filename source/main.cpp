@@ -18,6 +18,7 @@
 #include "storage_mode.hpp"
 #include "kernel_mode.hpp"
 #include "services_mode.hpp"
+#include "debug.hpp"
 
 using namespace nxd;
 
@@ -44,13 +45,13 @@ static int moduleByName(const char* name) {
 }
 
 static void printUsage(const char* prog) {
-    printf("Usage: %s [command]\n", prog ? prog : "nxdiag");
-    printf("  <module>           open a module: sysinfo, cpu, memory, gpu,\n"
-           "                     storage, kernel, services\n");
-    printf("  export [<module>]  probe one module (or every module) and write\n"
-           "                     the categorized JSON report to\n"
-           "                     sdmc:/nxdiag/report.json\n");
-    printf("  help               show this message\n");
+    debug::log("Usage: %s [command]", prog ? prog : "nxdiag");
+    debug::log("  <module>           open a module: sysinfo, cpu, memory, gpu,");
+    debug::log("                     storage, kernel, services");
+    debug::log("  export [<module>]  probe one module (or every module) and write");
+    debug::log("                     the categorized JSON report to");
+    debug::log("                     sdmc:/nxdiag/report.json");
+    debug::log("  help               show this message");
 }
 
 // Parse the homebrew launch command line. argv[1] selects a subcommand:
@@ -78,10 +79,16 @@ static Options parseArgs(int argc, char* argv[]) {
     }
     int m = moduleByName(cmd);                        // bare module name
     if (m >= 0) opt.startMode = m;
+    else        debug::log("nxdiag: unknown command '%s'; try 'nxdiag help'", cmd);
     return opt;
 }
 
 int main(int argc, char* argv[]) {
+    // Bring up the debug sinks (nxlink + svcOutputDebugString) only when a
+    // launch command was passed, so a plain hbmenu launch isn't slowed by the
+    // socket-stack init.
+    if (argc > 1) debug::init();
+
     const Options opt = parseArgs(argc, argv);
 
     static MenuMode     menu;
@@ -128,6 +135,7 @@ int main(int argc, char* argv[]) {
             consoleUpdate(NULL);
         }
         consoleExit(NULL);
+        debug::exit();
         return 1;
     }
 
@@ -140,5 +148,6 @@ int main(int argc, char* argv[]) {
 
     runner.run();
     runner.deinit();
+    debug::exit();
     return 0;
 }
