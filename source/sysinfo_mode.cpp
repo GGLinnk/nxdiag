@@ -1,4 +1,5 @@
 #include "sysinfo_mode.hpp"
+#include "debug.hpp"
 #include <switch.h>
 #include <cstdio>
 #include <cstring>
@@ -38,8 +39,11 @@ const char* hardwareName(u64 t) {
 
 // One spl config item, always emitted: value on success, error otherwise.
 void splItem(report::Section& s, const char* key, SplConfigItem item) {
+    debug::log("[sysinfo]   splGetConfig(%s, %d)...", key, (int)item);
     u64 v = 0;
     Result rc = splGetConfig(item, &v);
+    debug::log("[sysinfo]   splGetConfig(%s) -> rc=0x%08X v=0x%llx",
+               key, rc, (unsigned long long)v);
     if (R_SUCCEEDED(rc)) s.info(key, "%llu  (0x%llx)",
                                 (unsigned long long)v, (unsigned long long)v);
     else                 s.error(key, rc);
@@ -108,14 +112,20 @@ void SysInfoMode::seedSkeleton() {
 }
 
 void SysInfoMode::run() {
+    debug::log("[sysinfo] run() begin");
     // --- Firmware --------------------------------------------------------
     {
+        debug::log("[sysinfo] Firmware: section begin");
         report::Section& s = report_.add("Firmware");
+        debug::log("[sysinfo]   setsysInitialize...");
         Result rc = setsysInitialize();
+        debug::log("[sysinfo]   setsysInitialize -> 0x%08X", rc);
         s.result("setsys: initialize", rc);
         if (R_SUCCEEDED(rc)) {
+            debug::log("[sysinfo]   setsysGetFirmwareVersion...");
             SetSysFirmwareVersion fw{};
             Result frc = setsysGetFirmwareVersion(&fw);
+            debug::log("[sysinfo]   setsysGetFirmwareVersion -> 0x%08X", frc);
             if (R_SUCCEEDED(frc)) {
                 s.check("Display version present", fw.display_version[0] != 0,
                         "%s", fw.display_version[0] ? fw.display_version : "EMPTY");
@@ -132,16 +142,21 @@ void SysInfoMode::run() {
                 s.error("Firmware version", frc);
             }
 
+            debug::log("[sysinfo]   setsysGetFirmwareVersionDigest...");
             SetSysFirmwareVersionDigest digest{};
             Result drc = setsysGetFirmwareVersionDigest(&digest);
+            debug::log("[sysinfo]   setsysGetFirmwareVersionDigest -> 0x%08X", drc);
             if (R_SUCCEEDED(drc))
                 s.check("Firmware digest present", digest.digest[0] != 0,
                         "%.32s", digest.digest);
             else
                 s.error("Firmware digest", drc);
 
+            debug::log("[sysinfo]   setsysGetColorSetId...");
             ColorSetId color = ColorSetId_Light;
             Result crc = setsysGetColorSetId(&color);
+            debug::log("[sysinfo]   setsysGetColorSetId -> rc=0x%08X color=%d",
+                       crc, (int)color);
             if (R_SUCCEEDED(crc))
                 s.check("Theme colour set", color == ColorSetId_Light ||
                                             color == ColorSetId_Dark,
@@ -149,8 +164,10 @@ void SysInfoMode::run() {
             else
                 s.error("Theme colour set", crc);
 
+            debug::log("[sysinfo]   setsysGetSerialNumber...");
             SetSysSerialNumber serial{};
             Result src = setsysGetSerialNumber(&serial);
+            debug::log("[sysinfo]   setsysGetSerialNumber -> 0x%08X", src);
             if (R_SUCCEEDED(src))
                 // A blank serial is normal on CFW (Atmosphere can hide it),
                 // so flag it as a warning rather than a hard failure.
@@ -161,18 +178,26 @@ void SysInfoMode::run() {
             else
                 s.error("Serial number", src);
 
+            debug::log("[sysinfo]   setsysExit");
             setsysExit();
         }
+        debug::log("[sysinfo] Firmware: section end");
     }
 
     // --- Hardware --------------------------------------------------------
     {
+        debug::log("[sysinfo] Hardware: section begin");
         report::Section& s = report_.add("Hardware");
+        debug::log("[sysinfo]   splInitialize...");
         Result rc = splInitialize();
+        debug::log("[sysinfo]   splInitialize -> 0x%08X", rc);
         s.result("spl: initialize", rc);
         if (R_SUCCEEDED(rc)) {
+            debug::log("[sysinfo]   splGetConfig(HardwareType)...");
             u64 hw = ~0ull;
             Result hrc = splGetConfig(SplConfigItem_HardwareType, &hw);
+            debug::log("[sysinfo]   splGetConfig(HardwareType) -> rc=0x%08X hw=%llu",
+                       hrc, (unsigned long long)hw);
             if (R_SUCCEEDED(hrc)) {
                 s.check("Hardware type", hw <= 5, "%llu - %s",
                         (unsigned long long)hw, hardwareName(hw));
@@ -189,24 +214,33 @@ void SysInfoMode::run() {
             splItem(s, "Memory arrangement",  SplConfigItem_MemoryArrange);
             splItem(s, "Kernel memory cfg",   SplConfigItem_KernelMemoryConfiguration);
 
+            debug::log("[sysinfo]   splGetConfig(DeviceId)...");
             u64 devId = 0;
             Result drc = splGetConfig(SplConfigItem_DeviceId, &devId);
+            debug::log("[sysinfo]   splGetConfig(DeviceId) -> 0x%08X", drc);
             if (R_SUCCEEDED(drc))
                 s.check("Device id", devId != 0, "0x%016llx",
                         (unsigned long long)devId);
             else
                 s.error("Device id", drc);
+            debug::log("[sysinfo]   splExit");
             splExit();
         }
+        debug::log("[sysinfo] Hardware: section end");
     }
 
     // --- CFW / loader ----------------------------------------------------
     {
+        debug::log("[sysinfo] CFW / Loader: section begin");
         report::Section& s = report_.add("CFW / Loader");
+        debug::log("[sysinfo]   splInitialize (for ExosphereApiVersion probe)...");
         Result rc = splInitialize();
+        debug::log("[sysinfo]   splInitialize -> 0x%08X", rc);
         if (R_SUCCEEDED(rc)) {
+            debug::log("[sysinfo]   splGetConfig(ExosphereApiVersion=65000)...");
             u64 v = 0;
             Result erc = splGetConfig((SplConfigItem)65000, &v);   // ExosphereApiVersion
+            debug::log("[sysinfo]   splGetConfig(65000) -> 0x%08X", erc);
             if (R_SUCCEEDED(erc)) {
                 u32 maj = (v >> 56) & 0xFF, min = (v >> 48) & 0xFF, mic = (v >> 40) & 0xFF;
                 s.text("Custom firmware", report::Status::Info,
@@ -219,6 +253,7 @@ void SysInfoMode::run() {
                 s.text("Custom firmware", report::Status::Info,
                        "not detected (stock firmware or emulator)");
             }
+            debug::log("[sysinfo]   splExit (CFW probe)");
             splExit();
         } else {
             s.error("spl (for CFW probe)", rc);
@@ -228,85 +263,119 @@ void SysInfoMode::run() {
         s.info("Has argv", "%s", envHasArgv() ? "yes" : "no");
         s.info("Heap override", "%s", envHasHeapOverride() ? "yes" : "no");
         s.info("Next-load capable", "%s", envHasNextLoad() ? "yes" : "no");
+        debug::log("[sysinfo] CFW / Loader: section end");
     }
 
     // --- Region & locale -------------------------------------------------
     {
+        debug::log("[sysinfo] Region & Locale: section begin");
         report::Section& s = report_.add("Region & Locale");
+        debug::log("[sysinfo]   setInitialize...");
         Result rc = setInitialize();
+        debug::log("[sysinfo]   setInitialize -> 0x%08X", rc);
         s.result("set: initialize", rc);
         if (R_SUCCEEDED(rc)) {
+            debug::log("[sysinfo]   setGetRegionCode...");
             SetRegion region;
             Result rrc = setGetRegionCode(&region);
+            debug::log("[sysinfo]   setGetRegionCode -> rc=0x%08X region=%d",
+                       rrc, (int)region);
             if (R_SUCCEEDED(rrc))
                 s.check("Region code", region >= SetRegion_JPN && region <= SetRegion_CHN,
                         "%d - %s", (int)region, regionName(region));
             else
                 s.error("Region code", rrc);
 
+            debug::log("[sysinfo]   setGetSystemLanguage...");
             u64 lc = 0;
             char lang[16];
             Result lrc = setGetSystemLanguage(&lc);
+            debug::log("[sysinfo]   setGetSystemLanguage -> 0x%08X", lrc);
             if (R_SUCCEEDED(lrc)) {
                 languageString(lc, lang, sizeof(lang));
                 s.check("System language", lang[0] != '?', "%s", lang);
             } else {
                 s.error("System language", lrc);
             }
+            debug::log("[sysinfo]   setGetLanguageCode...");
             Result crc = setGetLanguageCode(&lc);
+            debug::log("[sysinfo]   setGetLanguageCode -> 0x%08X", crc);
             if (R_SUCCEEDED(crc)) {
                 languageString(lc, lang, sizeof(lang));
                 s.check("Language code", lang[0] != '?', "%s", lang);
             } else {
                 s.error("Language code", crc);
             }
+            debug::log("[sysinfo]   setExit");
             setExit();
         }
+        debug::log("[sysinfo] Region & Locale: section end");
     }
 
     // --- Power & performance --------------------------------------------
     {
+        debug::log("[sysinfo] Power & Performance: section begin");
         report::Section& s = report_.add("Power & Performance");
+        debug::log("[sysinfo]   appletGetOperationMode...");
         AppletOperationMode op = appletGetOperationMode();
+        debug::log("[sysinfo]   appletGetOperationMode -> %d", (int)op);
         s.check("Operation mode", op == AppletOperationMode_Handheld ||
                                   op == AppletOperationMode_Console,
                 "%s", op == AppletOperationMode_Console ? "Console (docked)"
                                                         : "Handheld");
 
+        debug::log("[sysinfo]   appletGetPerformanceMode...");
         ApmPerformanceMode pm = appletGetPerformanceMode();
+        debug::log("[sysinfo]   appletGetPerformanceMode -> %d", (int)pm);
         s.check("Applet performance mode", pm != ApmPerformanceMode_Invalid,
                 "%s", pm == ApmPerformanceMode_Boost ? "Boost"
                     : pm == ApmPerformanceMode_Normal ? "Normal" : "INVALID");
 
+        debug::log("[sysinfo]   apmInitialize...");
         Result rc = apmInitialize();
+        debug::log("[sysinfo]   apmInitialize -> 0x%08X", rc);
         s.result("apm: initialize", rc);
         if (R_SUCCEEDED(rc)) {
+            debug::log("[sysinfo]   apmGetPerformanceMode...");
             ApmPerformanceMode apm = ApmPerformanceMode_Invalid;
             Result arc = apmGetPerformanceMode(&apm);
+            debug::log("[sysinfo]   apmGetPerformanceMode -> rc=0x%08X mode=%d",
+                       arc, (int)apm);
             if (R_SUCCEEDED(arc))
                 s.check("APM performance mode", apm != ApmPerformanceMode_Invalid,
                         "%s", apm == ApmPerformanceMode_Boost ? "Boost"
                             : apm == ApmPerformanceMode_Normal ? "Normal" : "INVALID");
             else
                 s.error("APM performance mode", arc);
+            debug::log("[sysinfo]   apmExit");
             apmExit();
         }
+        debug::log("[sysinfo] Power & Performance: section end");
     }
 
     // --- Counters & time -------------------------------------------------
     {
+        debug::log("[sysinfo] Counters & Time: section begin");
         report::Section& s = report_.add("Counters & Time");
+        debug::log("[sysinfo]   armGetSystemTickFreq...");
         u64 freq = armGetSystemTickFreq();
+        debug::log("[sysinfo]   armGetSystemTickFreq -> %llu", (unsigned long long)freq);
         s.exact("System tick frequency", (double)freq, 19200000.0, "Hz");
 
+        debug::log("[sysinfo]   armGetSystemTick (advance test)...");
         // Two back-to-back reads execute faster than one ~52 ns tick, so spin
         // until the counter actually moves before asserting it advanced.
         u64 t0 = armGetSystemTick(), t1 = t0;
         for (int i = 0; i < 2000000 && t1 == t0; i++) t1 = armGetSystemTick();
+        debug::log("[sysinfo]   tick advance -> %s (delta=%llu)",
+                   t1 > t0 ? "ok" : "STALLED",
+                   (unsigned long long)(t1 - t0));
         s.check("System tick advancing", t1 > t0, "monotonic counter is running");
         s.num("Process uptime", (double)armTicksToNs(armGetSystemTick()) / 1e9, "s");
 
+        debug::log("[sysinfo]   time(nullptr)...");
         time_t now = time(nullptr);
+        debug::log("[sysinfo]   time -> %lld", (long long)now);
         if (now > 0) {
             struct tm tmv;
             gmtime_r(&now, &tmv);
@@ -317,5 +386,7 @@ void SysInfoMode::run() {
         } else {
             s.missing("Wall clock", "time() returned no value");
         }
+        debug::log("[sysinfo] Counters & Time: section end");
     }
+    debug::log("[sysinfo] run() end");
 }

@@ -1,11 +1,14 @@
 #include "probe_mode.hpp"
 #include "nxdisplaylib/gfx.hpp"
+#include "debug.hpp"
 #include <switch.h>
 #include <cstdio>
 
 using namespace nxd;
 
 void ProbeMode::onEnter() {
+    debug::log("[probe] %s: onEnter (hasRun=%d, workerActive=%d)",
+               name(), hasRun_, workerActive_);
     // Probe once on first visit; later visits show the cached report and the
     // user re-runs explicitly with A.
     if (!workerActive_ && !hasRun_)
@@ -14,12 +17,19 @@ void ProbeMode::onEnter() {
 
 void ProbeMode::workerThunk(void* self) {
     ProbeMode* m = static_cast<ProbeMode*>(self);
+    debug::log("[probe] %s: worker thread entering run()", m->name());
     m->run();
+    debug::log("[probe] %s: worker thread exiting run()", m->name());
     m->workerDone_.store(true, std::memory_order_release);
 }
 
 void ProbeMode::startWorker() {
-    if (workerActive_) return;          // a probe is already in flight
+    if (workerActive_) {
+        debug::log("[probe] %s: startWorker skipped (already active)", name());
+        return;
+    }
+    debug::log("[probe] %s: startWorker: clear + seedSkeleton, defer spawn",
+               name());
 
     report_.clear();
     seedSkeleton();         // draw the layout instantly; real values upsert
@@ -40,8 +50,12 @@ void ProbeMode::spawnWorker() {
                              256 * 1024, prio, -2);
     if (R_SUCCEEDED(rc) && R_SUCCEEDED(threadStart(&worker_))) {
         workerActive_ = true;
+        debug::log("[probe] %s: worker thread started (prio=0x%02X)",
+                   name(), prio);
     } else {
         // No worker thread available: fall back to running inline.
+        debug::log("[probe] %s: thread create/start FAILED 0x%08X; "
+                   "running inline on the main thread", name(), rc);
         run();
         hasRun_ = true;
     }
@@ -49,6 +63,7 @@ void ProbeMode::spawnWorker() {
 
 void ProbeMode::joinWorker() {
     if (!workerActive_) return;
+    debug::log("[probe] %s: joinWorker (blocking)", name());
     threadWaitForExit(&worker_);
     threadClose(&worker_);
     workerActive_ = false;
@@ -61,6 +76,7 @@ void ProbeMode::update(const Input& in) {
         threadClose(&worker_);
         workerActive_ = false;
         hasRun_ = true;
+        debug::log("[probe] %s: worker joined, hasRun set", name());
     }
     // Skeleton was seeded; render it for at least one frame, then spawn.
     if (pendingFrames_ > 0 && !workerActive_) {

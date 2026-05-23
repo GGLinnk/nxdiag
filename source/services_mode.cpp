@@ -1,4 +1,5 @@
 #include "services_mode.hpp"
+#include "debug.hpp"
 #include <switch.h>
 #include <cstdio>
 #include <cstring>
@@ -14,18 +15,27 @@ namespace {
 // the session API first and fall back to the legacy call on old firmware.
 void probeTemp(report::Section& s, const char* key, u32 deviceCode,
                TsLocation legacy, double hi) {
+    debug::log("[services]   probeTemp(%s): tsOpenSession(0x%08X)...", key, deviceCode);
     TsSession sess;
     Result orc = tsOpenSession(&sess, deviceCode);
+    debug::log("[services]   probeTemp(%s): tsOpenSession -> 0x%08X", key, orc);
     if (R_SUCCEEDED(orc)) {
+        debug::log("[services]   probeTemp(%s): tsSessionGetTemperature...", key);
         float tc = 0.0f;
         Result grc = tsSessionGetTemperature(&sess, &tc);
+        debug::log("[services]   probeTemp(%s): tsSessionGetTemperature -> rc=0x%08X t=%.2f C",
+                   key, grc, tc);
         tsSessionClose(&sess);
         if (R_SUCCEEDED(grc)) s.expect(key, tc, 0.0, hi, "C");
         else                  s.error(key, grc);
         return;
     }
+    debug::log("[services]   probeTemp(%s): falling back to tsGetTemperatureMilliC(legacy=%d)",
+               key, (int)legacy);
     s32 milli = 0;
     Result lrc = tsGetTemperatureMilliC(legacy, &milli);
+    debug::log("[services]   probeTemp(%s): tsGetTemperatureMilliC -> rc=0x%08X milli=%d",
+               key, lrc, milli);
     if (R_SUCCEEDED(lrc)) s.expect(key, milli / 1000.0, 0.0, hi, "C");
     else                  s.error(key, lrc);
 }
@@ -120,11 +130,15 @@ void ServicesMode::seedSkeleton() {
 }
 
 void ServicesMode::run() {
+    debug::log("[services] run() begin");
     // --- Power & thermal -------------------------------------------------
     {
+        debug::log("[services] Power & Thermal: section begin");
         report::Section& s = report_.add("Power & Thermal");
 
+        debug::log("[services]   psmInitialize...");
         Result rc = psmInitialize();
+        debug::log("[services]   psmInitialize -> 0x%08X", rc);
         s.result("psm: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             u32 pct = 0;
@@ -140,32 +154,46 @@ void ServicesMode::run() {
             else
                 s.error("psm: charger type", r2);
 
+            debug::log("[services]   psmIsBatteryChargingEnabled...");
             bool charging = false;
             Result r3 = psmIsBatteryChargingEnabled(&charging);
+            debug::log("[services]   psmIsBatteryChargingEnabled -> rc=0x%08X v=%d",
+                       r3, (int)charging);
             if (R_SUCCEEDED(r3)) s.check("psm: charging enabled", true,
                                          "%s", charging ? "yes" : "no");
             else                 s.error("psm: charging enabled", r3);
+            debug::log("[services]   psmExit");
             psmExit();
         }
 
+        debug::log("[services]   tsInitialize...");
         rc = tsInitialize();
+        debug::log("[services]   tsInitialize -> 0x%08X", rc);
         s.result("ts: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             probeTemp(s, "ts: PCB temperature",
                       TsDeviceCode_LocationInternal, TsLocation_Internal, 90.0);
             probeTemp(s, "ts: SoC temperature",
                       TsDeviceCode_LocationExternal, TsLocation_External, 95.0);
+            debug::log("[services]   tsExit");
             tsExit();
         }
 
+        debug::log("[services]   fanInitialize...");
         rc = fanInitialize();
+        debug::log("[services]   fanInitialize -> 0x%08X", rc);
         s.result("fan: initialize", rc);
         if (R_SUCCEEDED(rc)) {
+            debug::log("[services]   fanOpenController(0x3D000001)...");
             FanController fan;
             Result orc = fanOpenController(&fan, 0x3D000001);  // cooler device
+            debug::log("[services]   fanOpenController -> 0x%08X", orc);
             if (R_SUCCEEDED(orc)) {
+                debug::log("[services]   fanControllerGetRotationSpeedLevel...");
                 float level = -1.0f;
                 Result grc = fanControllerGetRotationSpeedLevel(&fan, &level);
+                debug::log("[services]   fanControllerGetRotationSpeedLevel -> rc=0x%08X level=%.3f",
+                           grc, level);
                 if (R_SUCCEEDED(grc))
                     s.expect("fan: rotation speed level", level, 0.0, 1.0, "");
                 else
@@ -174,10 +202,13 @@ void ServicesMode::run() {
             } else {
                 s.error("fan: open controller", orc);
             }
+            debug::log("[services]   fanExit");
             fanExit();
         }
 
+        debug::log("[services]   apmInitialize...");
         rc = apmInitialize();
+        debug::log("[services]   apmInitialize -> 0x%08X", rc);
         s.result("apm: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             ApmPerformanceMode pm = ApmPerformanceMode_Invalid;
@@ -194,15 +225,20 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r2)) s.check("apm: normal-mode config", cfg != 0,
                                          "0x%08X", cfg);
             else                 s.error("apm: normal-mode config", r2);
+            debug::log("[services]   apmExit");
             apmExit();
         }
+        debug::log("[services] Power & Thermal: section end");
     }
 
     // --- Display & audio -------------------------------------------------
     {
+        debug::log("[services] Display & Audio: section begin");
         report::Section& s = report_.add("Display & Audio");
 
+        debug::log("[services]   lblInitialize...");
         Result rc = lblInitialize();
+        debug::log("[services]   lblInitialize -> 0x%08X", rc);
         s.result("lbl: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             float b = -1.0f;
@@ -222,10 +258,13 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r3)) s.check("lbl: backlight switch", true,
                                          "status %d", (int)st);
             else                 s.error("lbl: backlight switch", r3);
+            debug::log("[services]   lblExit");
             lblExit();
         }
 
+        debug::log("[services]   audoutInitialize...");
         rc = audoutInitialize();
+        debug::log("[services]   audoutInitialize -> 0x%08X", rc);
         s.result("audout: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             s.exact("audout: sample rate", audoutGetSampleRate(), 48000.0, "Hz");
@@ -246,14 +285,19 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r2)) s.check("audout: output state", true,
                                          "state %d", (int)state);
             else                 s.error("audout: output state", r2);
+            debug::log("[services]   audoutExit");
             audoutExit();
         }
+        debug::log("[services] Display & Audio: section end");
     }
 
     // --- Network ---------------------------------------------------------
     {
+        debug::log("[services] Network: section begin");
         report::Section& s = report_.add("Network");
+        debug::log("[services]   nifmInitialize(NifmServiceType_User)...");
         Result rc = nifmInitialize(NifmServiceType_User);
+        debug::log("[services]   nifmInitialize -> 0x%08X", rc);
         s.result("nifm: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             u32 ip = 0;
@@ -285,14 +329,19 @@ void ServicesMode::run() {
                                          "type %d, status %d, signal %lu",
                                          (int)ct, (int)cs, (unsigned long)strength);
             else                 s.error("nifm: connection status", r4);
+            debug::log("[services]   nifmExit");
             nifmExit();
         }
+        debug::log("[services] Network: section end");
     }
 
     // --- Crypto & random -------------------------------------------------
     {
+        debug::log("[services] Crypto & Random: section begin");
         report::Section& s = report_.add("Crypto & Random");
+        debug::log("[services]   csrngInitialize...");
         Result rc = csrngInitialize();
+        debug::log("[services]   csrngInitialize -> 0x%08X", rc);
         s.result("csrng: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             u8 a[16] = {}, b[16] = {};
@@ -306,10 +355,13 @@ void ServicesMode::run() {
             } else {
                 s.error("csrng: getRandomBytes", R_FAILED(r1) ? r1 : r2);
             }
+            debug::log("[services]   csrngExit");
             csrngExit();
         }
 
+        debug::log("[services]   splInitialize...");
         rc = splInitialize();
+        debug::log("[services]   splInitialize -> 0x%08X", rc);
         s.result("spl: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             u8 r[16] = {};
@@ -327,15 +379,20 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r2)) s.check("spl: isDevelopment", true,
                                          "%s", dev ? "development unit" : "retail");
             else                 s.error("spl: isDevelopment", r2);
+            debug::log("[services]   splExit");
             splExit();
         }
+        debug::log("[services] Crypto & Random: section end");
     }
 
     // --- Hardware buses --------------------------------------------------
     {
+        debug::log("[services] Hardware Buses: section begin");
         report::Section& s = report_.add("Hardware Buses");
 
+        debug::log("[services]   i2cInitialize...");
         Result rc = i2cInitialize();
+        debug::log("[services]   i2cInitialize -> 0x%08X", rc);
         s.result("i2c: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             I2cSession sess;
@@ -346,10 +403,13 @@ void ServicesMode::run() {
             } else {
                 s.error("i2c: open Tmp451 session", orc);
             }
+            debug::log("[services]   i2cExit");
             i2cExit();
         }
 
+        debug::log("[services]   gpioInitialize...");
         rc = gpioInitialize();
+        debug::log("[services]   gpioInitialize -> 0x%08X", rc);
         s.result("gpio: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             GpioPadSession pad;
@@ -366,10 +426,13 @@ void ServicesMode::run() {
             } else {
                 s.error("gpio: open SD-detect pad", orc);
             }
+            debug::log("[services]   gpioExit");
             gpioExit();
         }
 
+        debug::log("[services]   clkrstInitialize...");
         rc = clkrstInitialize();
+        debug::log("[services]   clkrstInitialize -> 0x%08X", rc);
         s.result("clkrst: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             ClkrstSession sess;
@@ -385,10 +448,13 @@ void ServicesMode::run() {
             } else {
                 s.error("clkrst: open CpuBus session", orc);
             }
+            debug::log("[services]   clkrstExit");
             clkrstExit();
         }
 
+        debug::log("[services]   pcvInitialize...");
         rc = pcvInitialize();
+        debug::log("[services]   pcvInitialize -> 0x%08X", rc);
         s.result("pcv: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             u32 hz = 0;
@@ -399,15 +465,20 @@ void ServicesMode::run() {
                 s.expect("pcv: CPU clock", hz / 1.0e6, 70.0, 2500.0, "MHz");
             else
                 s.error("pcv: CPU clock (removed on 8.0.0+)", grc);
+            debug::log("[services]   pcvExit");
             pcvExit();
         }
+        debug::log("[services] Hardware Buses: section end");
     }
 
     // --- System & account -----------------------------------------------
     {
+        debug::log("[services] System & Account: section begin");
         report::Section& s = report_.add("System & Account");
 
+        debug::log("[services]   accountInitialize(Application)...");
         Result rc = accountInitialize(AccountServiceType_Application);
+        debug::log("[services]   accountInitialize -> 0x%08X", rc);
         s.result("account: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             s32 users = -1;
@@ -421,10 +492,13 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r2)) s.check("account: list users", true,
                                          "%d profile(s) enumerated", listed);
             else                 s.error("account: list users", r2);
+            debug::log("[services]   accountExit");
             accountExit();
         }
 
+        debug::log("[services]   setsysInitialize...");
         rc = setsysInitialize();
+        debug::log("[services]   setsysInitialize -> 0x%08X", rc);
         s.result("setsys: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             ColorSetId color = ColorSetId_Light;
@@ -433,10 +507,13 @@ void ServicesMode::run() {
                                          "%s", color == ColorSetId_Dark ? "Dark"
                                                                          : "Light");
             else                 s.error("setsys: colour set", r1);
+            debug::log("[services]   setsysExit");
             setsysExit();
         }
 
+        debug::log("[services]   setInitialize...");
         rc = setInitialize();
+        debug::log("[services]   setInitialize -> 0x%08X", rc);
         s.result("set: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             SetRegion region = SetRegion_JPN;
@@ -444,10 +521,13 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r1)) s.check("set: region code", region <= SetRegion_CHN,
                                          "region %d", (int)region);
             else                 s.error("set: region code", r1);
+            debug::log("[services]   setExit");
             setExit();
         }
 
+        debug::log("[services]   nsInitialize...");
         rc = nsInitialize();
+        debug::log("[services]   nsInitialize -> 0x%08X", rc);
         s.result("ns: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             s64 total = 0, freeSp = 0;
@@ -460,10 +540,13 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r2)) s.atLeast("ns: SD free space",
                                            freeSp / (double)(1u << 20), 0.0, "MiB");
             else                 s.error("ns: SD free space", r2);
+            debug::log("[services]   nsExit");
             nsExit();
         }
 
+        debug::log("[services]   miiInitialize(User)...");
         rc = miiInitialize(MiiServiceType_User);
+        debug::log("[services]   miiInitialize -> 0x%08X", rc);
         s.result("mii: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             MiiDatabase db;
@@ -477,10 +560,13 @@ void ServicesMode::run() {
             } else {
                 s.error("mii: open database", orc);
             }
+            debug::log("[services]   miiExit");
             miiExit();
         }
 
+        debug::log("[services]   pctlInitialize...");
         rc = pctlInitialize();
+        debug::log("[services]   pctlInitialize -> 0x%08X", rc);
         s.result("pctl: initialize", rc);
         if (R_SUCCEEDED(rc)) {
             bool restricted = false;
@@ -488,11 +574,14 @@ void ServicesMode::run() {
             if (R_SUCCEEDED(r1)) s.check("pctl: restriction enabled", true,
                                          "%s", restricted ? "yes" : "no");
             else                 s.error("pctl: restriction enabled", r1);
+            debug::log("[services]   pctlExit");
             pctlExit();
         }
+        debug::log("[services] System & Account: section end");
     }
 
     {
+        debug::log("[services] Notes: section begin");
         report::Section& s = report_.add("Notes");
         s.info("What is tested", "each service is initialised, then real");
         s.info("", "functions are called on it and their results validated");
@@ -500,5 +589,7 @@ void ServicesMode::run() {
         s.info("", "shows the call is out of reach for applet-context homebrew");
         s.info("Fingerprint", "the set of calls that succeed differs across");
         s.info("", "real hardware, CFW and emulators");
+        debug::log("[services] Notes: section end");
     }
+    debug::log("[services] run() end");
 }

@@ -1,6 +1,7 @@
 #include "menu_mode.hpp"
 #include "probe_mode.hpp"
 #include "nxdisplaylib/gfx.hpp"
+#include "debug.hpp"
 #include <cstdio>
 
 // Provided by the build (-DAPP_VERSION, from the Makefile's APP_VERSION);
@@ -38,19 +39,28 @@ const char* kReportPath = "sdmc:/nxdiag/report.json";
 // Worker body: probe the targeted module(s), then write the categorized JSON.
 // Runs on a background thread so the menu keeps rendering throughout.
 void MenuMode::runExport() {
+    debug::log("[export] worker entering runExport (target=%d, probeCount=%d)",
+               exportTarget_, probeCount_);
     std::vector<report::Category> cats;
     const int total = (exportTarget_ < 0) ? probeCount_ : 1;
     for (int n = 0; n < total; n++) {
         int i = (exportTarget_ < 0) ? n : exportTarget_;
         exportStage_.store(n + 1, std::memory_order_relaxed);
         ProbeMode* m = probes_[i];
+        debug::log("[export] (%d/%d) probing %s", n + 1, total, m->name());
         m->joinWorker();        // never race a module's own probe worker
         m->runFresh();
+        debug::log("[export] (%d/%d) %s done; report has %zu section(s)",
+                   n + 1, total, m->name(), m->report().sections().size());
         cats.push_back(report::Category{ m->name(), m->report() });
     }
     exportStage_.store(total + 1, std::memory_order_relaxed);
 
+    debug::log("[export] writeJson(%s) for %d category(ies)...",
+               kReportPath, (int)cats.size());
     Result rc = report::writeJson(kReportPath, cats);
+    debug::log("[export] writeJson -> 0x%08X (%s)",
+               rc, R_SUCCEEDED(rc) ? "ok" : "FAILED");
     exportOk_ = R_SUCCEEDED(rc);
     char buf[160];
     if (exportOk_)
@@ -60,6 +70,7 @@ void MenuMode::runExport() {
                  report::describeResult(rc).c_str());
     exportMsg_ = buf;
     exportDone_.store(true, std::memory_order_release);
+    debug::log("[export] worker exiting runExport");
 }
 
 void MenuMode::exportThunk(void* self) {
@@ -67,20 +78,29 @@ void MenuMode::exportThunk(void* self) {
 }
 
 void MenuMode::beginExport(int target) {
-    if (exportActive_) return;
+    if (exportActive_) {
+        debug::log("[export] beginExport(%d) skipped (already active)", target);
+        return;
+    }
     exportTarget_ = (target >= 0 && target < probeCount_) ? target : -1;
+    debug::log("[export] beginExport(target=%d -> exportTarget_=%d)",
+               target, exportTarget_);
     exportMsg_.clear();
     exportDone_.store(false, std::memory_order_relaxed);
     exportStage_.store(0, std::memory_order_relaxed);
 
     s32 prio = 0x2C;
     svcGetThreadPriority(&prio, CUR_THREAD_HANDLE);
+    debug::log("[export] threadCreate (prio=0x%02X)...", prio);
     Result rc = threadCreate(&exportThread_, exportThunk, this, nullptr,
                              256 * 1024, prio, -2);
-    if (R_SUCCEEDED(rc) && R_SUCCEEDED(threadStart(&exportThread_)))
+    if (R_SUCCEEDED(rc) && R_SUCCEEDED(threadStart(&exportThread_))) {
         exportActive_ = true;
-    else
+        debug::log("[export] worker thread started");
+    } else {
+        debug::log("[export] thread create/start FAILED 0x%08X; running inline", rc);
         runExport();            // no worker thread available: run inline
+    }
 }
 
 void MenuMode::update(const Input& in) {
@@ -89,6 +109,8 @@ void MenuMode::update(const Input& in) {
             threadWaitForExit(&exportThread_);
             threadClose(&exportThread_);
             exportActive_ = false;
+            debug::log("[export] thread joined (ok=%d, msg=%s)",
+                       (int)exportOk_, exportMsg_.c_str());
         }
         return;                 // menu still renders, but ignores input
     }
