@@ -28,7 +28,7 @@ INCLUDES	:=	source libs/nxdisplaylib/include
 
 APP_TITLE	:=	NX Diag
 APP_AUTHOR	:=	GGLinnk
-APP_VERSION	:=	1.1.3
+APP_VERSION	:=	1.2.0
 
 #---------------------------------------------------------------------------------
 # options for code generation
